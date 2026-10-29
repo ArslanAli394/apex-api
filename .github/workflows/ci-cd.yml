@@ -1,0 +1,318 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Job 1: Code Quality Checks
+  lint:
+    name: Lint & Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Format check with black
+        run: black --check app/ tests/
+        continue-on-error: false
+
+      - name: Lint with pylint
+        run: pylint app/ --disable=all --enable=E,F
+        continue-on-error: false
+
+      - name: Lint with flake8
+        run: flake8 app/ tests/ --count --statistics
+        continue-on-error: false
+
+  # Job 2: Security Scanning
+  security:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Bandit security scan
+        run: bandit -r app/ -f json -o bandit-report.json
+        continue-on-error: true
+
+      - name: Safety check for vulnerable dependencies
+        run: safety check --json
+        continue-on-error: true
+
+      - name: pip-audit for dependency vulnerabilities
+        run: pip-audit --desc
+        continue-on-error: true
+
+  # Job 3: Unit & Integration Tests
+  test:
+    name: Tests & Coverage
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: apex_user
+          POSTGRES_PASSWORD: apex_password
+          POSTGRES_DB: apex_test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in {1..30}; do
+            if pg_isready -h localhost -U apex_user -d apex_test_db; then
+              echo "Database is ready"
+              break
+            fi
+            echo "Waiting for database... ($i/30)"
+            sleep 1
+          done
+        env:
+          PGPASSWORD: apex_password
+
+      - name: Initialize test database
+        run: |
+          psql -h localhost -U apex_user -d apex_test_db -c "CREATE EXTENSION IF NOT EXISTS hstore;" || true
+        env:
+          PGPASSWORD: apex_password
+
+      - name: Run pytest with coverage
+        run: pytest tests/ -v --cov=app --cov-report=xml --cov-report=html --cov-report=term-missing
+        env:
+          DATABASE_URL: postgresql://apex_user:apex_password@localhost:5432/apex_test_db
+          ENVIRONMENT: testing
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+
+      - name: Archive test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: |
+            htmlcov/
+            coverage.xml
+
+  # Job 4: Dockerfile Build & Analysis
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [lint, security, test]
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+        continue-on-error: true
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
+
+  # Job 5: Intentional Failure Test (demonstrates CI blocking)
+  failure-test:
+    name: Intentional Failure Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Demonstrate test failure handling
+        run: |
+          echo "This test demonstrates CI/CD failure handling"
+          echo "Checking for a non-existent configuration file..."
+          if [ ! -f "config/critical.conf" ]; then
+            echo "⚠️  INTENTIONAL FAILURE: Critical configuration file missing"
+            echo "In production, this would block deployment"
+            exit 0  # Set to exit 1 to actually fail the pipeline
+          fi
+
+  # Job 6: Integration Test with Docker Compose
+  integration:
+    name: Docker Compose Integration Test
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Compose
+        run: docker-compose --version
+
+      - name: Build services with Docker Compose
+        run: docker-compose build
+
+      - name: Start services
+        run: docker-compose up -d
+
+      - name: Wait for services to be healthy
+        run: |
+          for i in {1..30}; do
+            if docker-compose exec -T api curl -f http://localhost:8000/health/live > /dev/null 2>&1; then
+              echo "API is healthy"
+              break
+            fi
+            echo "Waiting for API to be healthy... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run API health checks
+        run: |
+          echo "Testing health endpoints..."
+          docker-compose exec -T api curl -v http://localhost:8000/health/live
+          docker-compose exec -T api curl -v http://localhost:8000/health/ready
+
+      - name: Run API smoke tests
+        run: |
+          echo "Testing API endpoints..."
+          docker-compose exec -T api curl -X POST http://localhost:8000/api/v1/items \
+            -H "Content-Type: application/json" \
+            -d '{"name":"Test","description":"Smoke test","category":"test"}'
+
+      - name: Collect logs
+        if: always()
+        run: |
+          mkdir -p logs
+          docker-compose logs api > logs/api.log
+          docker-compose logs postgres > logs/postgres.log
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-compose-logs
+          path: logs/
+
+      - name: Clean up
+        if: always()
+        run: docker-compose down -v
+
+  # Summary
+  ci-summary:
+    name: CI Pipeline Summary
+    runs-on: ubuntu-latest
+    needs: [lint, security, test, build, failure-test, integration]
+    if: always()
+
+    steps:
+      - name: Check CI status
+        run: |
+          echo "✅ CI Pipeline Execution Summary"
+          echo "================================"
+          echo "Lint Status: ${{ needs.lint.result }}"
+          echo "Security Scan Status: ${{ needs.security.result }}"
+          echo "Tests Status: ${{ needs.test.result }}"
+          echo "Build Status: ${{ needs.build.result }}"
+          echo "Failure Test Status: ${{ needs.failure-test.result }}"
+          echo "Integration Test Status: ${{ needs.integration.result }}"
+
+          if [[ "${{ needs.lint.result }}" == "success" && \
+                "${{ needs.security.result }}" == "success" && \
+                "${{ needs.test.result }}" == "success" && \
+                "${{ needs.build.result }}" == "success" && \
+                "${{ needs.integration.result }}" == "success" ]]; then
+            echo "✅ All critical checks PASSED - Deployment approved"
+            exit 0
+          else
+            echo "❌ Some checks FAILED - Deployment blocked"
+            exit 1
+          fi
