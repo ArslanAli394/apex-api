@@ -216,14 +216,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Demonstrate test failure handling
+      - name: Demonstrate test failure handling (INTENTIONAL FAILURE)
         run: |
-          echo "This test demonstrates CI/CD failure handling"
-          echo "Checking for a non-existent configuration file..."
+          echo "=========================================="
+          echo "INTENTIONAL FAILURE TEST"
+          echo "=========================================="
+          echo "This test demonstrates that CI/CD pipeline BLOCKS on failures"
+          echo ""
+          echo "Scenario: Checking for critical configuration file..."
+          echo "Expected: File should exist in production"
+          echo "Actual: File does not exist"
+          echo ""
+
           if [ ! -f "config/critical.conf" ]; then
-            echo "⚠️  INTENTIONAL FAILURE: Critical configuration file missing"
-            echo "In production, this would block deployment"
-            exit 0  # Set to exit 1 to actually fail the pipeline
+            echo "❌ CRITICAL CONFIGURATION FILE MISSING"
+            echo "This failure BLOCKS deployment to production"
+            echo "Action Required: Create config/critical.conf before deploying"
+            echo ""
+            echo "This demonstrates:"
+            echo "✅ CI/CD catches missing critical files"
+            echo "✅ Pipeline fails and blocks merge"
+            echo "✅ Forces fixes before deployment"
+            exit 1  # FAIL - This blocks the pipeline
           fi
 
   # Job 6: Integration Test with Docker Compose
