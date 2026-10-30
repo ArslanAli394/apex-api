@@ -14,7 +14,7 @@ jobs:
   # Job 1: Code Quality Checks
   lint:
     name: Lint & Code Quality
-    runs-on: ubuntu-26
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v4.2.2
 
