@@ -4,7 +4,8 @@ Defines the database schema.
 """
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, JSONB, Index
+from sqlalchemy import Column, Integer, String, Text, DateTime, Index
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -29,7 +30,7 @@ class Item(Base):
 
     # Metadata fields
     created_by = Column(String(100), nullable=True)
-    metadata = Column(JSONB, default={}, nullable=True)
+    attributes = Column(JSONB, default={}, nullable=True)
 
     # Timestamps
     created_at = Column(
@@ -59,7 +60,7 @@ class Item(Base):
             "category": self.category,
             "status": self.status,
             "created_by": self.created_by,
-            "metadata": self.metadata,
+            "attributes": self.attributes,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

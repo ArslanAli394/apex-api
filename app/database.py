@@ -63,8 +63,9 @@ async def check_db_connection() -> bool:
     Used for health checks.
     """
     try:
+        from sqlalchemy import text
         with engine.connect() as connection:
-            connection.execute("SELECT 1")
+            connection.execute(text("SELECT 1"))
         return True
     except Exception as e:
         logger.error(f"Database connection check failed: {str(e)}")

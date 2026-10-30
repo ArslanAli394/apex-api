@@ -61,7 +61,7 @@ def sample_item_data():
         "category": "test",
         "status": "active",
         "created_by": "test_user",
-        "metadata": {"key": "value"},
+        "attributes": {"key": "value"},
     }
 
 

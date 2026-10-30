@@ -54,8 +54,7 @@ app.add_middleware(
 
 # Add custom middleware
 app.add_middleware(RequestLoggingMiddleware)
-metrics_middleware = MetricsMiddleware(app)
-app.add_middleware(lambda app: metrics_middleware)
+app.add_middleware(MetricsMiddleware)
 
 
 # Exception handlers
