@@ -44,7 +44,7 @@ jobs:
   # Job 2: Security Scanning
   security:
     name: Security Scanning
-    runs-on: ubuntu-26
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v4.2.2
 
@@ -74,7 +74,7 @@ jobs:
   # Job 3: Unit & Integration Tests
   test:
     name: Tests & Coverage
-    runs-on: ubuntu-26
+    runs-on: ubuntu-26.04
 
     services:
       postgres:
@@ -149,7 +149,7 @@ jobs:
   # Job 4: Dockerfile Build & Analysis
   build:
     name: Build Docker Image
-    runs-on: ubuntu-26
+    runs-on: ubuntu-26.04 
     needs: [lint, security, test]
 
     permissions:
@@ -212,7 +212,7 @@ jobs:
   # Job 5: Intentional Failure Test (demonstrates CI blocking)
   failure-test:
     name: Intentional Failure Test
-    runs-on: ubuntu-26
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v4.2.2
 
@@ -243,7 +243,7 @@ jobs:
   # Job 6: Integration Test with Docker Compose
   integration:
     name: Docker Compose Integration Test
-    runs-on: ubuntu-26
+    runs-on: ubuntu-26.04
     needs: [lint, test]
 
     steps:
@@ -303,7 +303,7 @@ jobs:
   # Summary
   ci-summary:
     name: CI Pipeline Summary
-    runs-on: ubuntu-26
+    runs-on: ubuntu-26.04
     needs: [lint, security, test, build, failure-test, integration]
     if: always()
 
