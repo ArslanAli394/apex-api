@@ -23,8 +23,8 @@ class ItemBase(BaseModel):
         description="Item status",
     )
     created_by: Optional[str] = Field(None, max_length=100, description="Creator name")
-    metadata: Optional[Dict[str, Any]] = Field(
-        default_factory=dict, description="Additional metadata"
+    attributes: Optional[Dict[str, Any]] = Field(
+        default_factory=dict, description="Additional attributes"
     )
 
 
@@ -42,7 +42,7 @@ class ItemUpdate(BaseModel):
     category: Optional[str] = Field(None, min_length=1, max_length=50)
     status: Optional[str] = Field(None, pattern="^(active|inactive|archived)$")
     created_by: Optional[str] = Field(None, max_length=100)
-    metadata: Optional[Dict[str, Any]] = Field(None)
+    attributes: Optional[Dict[str, Any]] = Field(None)
 
 
 class Item(ItemBase):

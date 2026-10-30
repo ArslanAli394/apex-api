@@ -4,7 +4,7 @@ Middleware for request/response logging and metrics collection.
 
 import time
 import uuid
-from typing import Callable
+from typing import Callable, Any
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 import logging
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Middleware for structured request/response logging."""
 
-    async def dispatch(self, request: Request, call_next: Callable) -> any:
+    async def dispatch(self, request: Request, call_next: Callable) -> Any:
         """Log request and response details."""
         # Generate request ID for tracing
         request_id = str(uuid.uuid4())
@@ -83,7 +83,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         self.error_count = 0
         self.total_duration = 0
 
-    async def dispatch(self, request: Request, call_next: Callable) -> any:
+    async def dispatch(self, request: Request, call_next: Callable) -> Any:
         """Collect metrics for request/response."""
         start_time = time.time()
         self.request_count += 1

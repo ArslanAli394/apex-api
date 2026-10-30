@@ -4,6 +4,7 @@ Prometheus metrics endpoint and metrics collection.
 
 from datetime import datetime
 from fastapi import APIRouter
+from fastapi.responses import PlainTextResponse
 from prometheus_client import Counter, Histogram, Gauge, generate_latest, CollectorRegistry
 import logging
 
@@ -49,7 +50,7 @@ db_queries_total = Counter(
 )
 
 
-@router.get("/", response_class=str)
+@router.get("/", response_class=PlainTextResponse)
 async def prometheus_metrics() -> str:
     """
     Return Prometheus metrics in text format.

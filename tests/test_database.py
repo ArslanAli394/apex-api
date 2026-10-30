@@ -3,6 +3,7 @@ Integration tests for database operations.
 """
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.models import Item
 from app.database import Base, engine
@@ -13,7 +14,7 @@ class TestDatabaseIntegration:
 
     def test_database_connection(self, test_db: Session):
         """Test that database connection works."""
-        result = test_db.execute("SELECT 1")
+        result = test_db.execute(text("SELECT 1"))
         assert result is not None
 
     def test_item_creation(self, test_db: Session):

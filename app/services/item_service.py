@@ -102,7 +102,6 @@ class ItemService:
     def get_stats(db: Session) -> dict:
         """Get item statistics."""
         total_items = db.query(Item).count()
-        categories = db.query(Item.category, Item).filter().all()
 
         category_stats = {}
         for cat in db.query(Item.category).distinct().all():
